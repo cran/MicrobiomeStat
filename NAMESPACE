@@ -1,0 +1,17 @@
+import(statmod)
+import(matrixStats)
+import(stats)
+importFrom(parallel, mclapply, makeCluster, stopCluster, clusterEvalQ,
+           parApply, parLapply, parSapply, parRapply, parCapply)
+import(foreach)
+import(ggplot2)
+import(ggrepel)
+importFrom(lmerTest, lmer)
+importFrom(modeest, mlv)
+importFrom("grDevices", "dev.off", "hcl", "pdf")
+
+
+export(linda)
+export(linda.plot)
+
+
