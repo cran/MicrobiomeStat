@@ -117,7 +117,7 @@ winsor.fun <- function(Y, quan, feature.dat.type) {
 #'
 #' @export
 
-linda <- function(feature.dat, meta.dat, formula, feature.dat.type = c('count', 'proportion'),
+linda <- function(feature.dat, meta.dat, phyloseq.obj = NULL, formula, feature.dat.type = c('count', 'proportion'),
 		prev.filter = 0, mean.abund.filter = 0, max.abund.filter = 0,
 		is.winsor = TRUE, outlier.pct = 0.03,
 		adaptive = TRUE, zero.handling = c('pseudo-count', 'imputation'),
@@ -126,6 +126,14 @@ linda <- function(feature.dat, meta.dat, formula, feature.dat.type = c('count', 
         n.cores = 1, verbose = TRUE) {
 	
 	feature.dat.type <- match.arg(feature.dat.type)
+	
+	if (!is.null(phyloseq.obj)) {
+		feature.dat.type <- 'count'
+		
+		feature.dat <- otu_table(phyloseq.obj)@.Data
+		meta.dat <- data.frame(sample_data(phyloseq.obj))	
+	}
+
 	if(any(is.na(feature.dat))) {
 		stop('The feature table contains NAs! Please remove!\n')
 	}

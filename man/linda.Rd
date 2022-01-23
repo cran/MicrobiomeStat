@@ -14,6 +14,7 @@ It could fit mixed-effect models for analysis of correlated data.
 linda(
   feature.dat,
   meta.dat,
+  phyloseq.obj = NULL,
   formula,
   feature.dat.type = c('count', 'proportion'),
   prev.filter = 0,
@@ -38,6 +39,8 @@ linda(
 \item{meta.dat}{a data frame containing the sample meta data. If there are NAs, the corresponding samples
  will be removed in the analysis.}
 
+\item{phyloseq.obj}{a \code{phyloseq} object containing the OTU count data and sample data.}
+ 
 \item{formula}{a character string for the formula. The formula should conform to that used by \code{lm} (independent 
 data) or \code{lmer} (correlated data).
  For example: \code{formula = '~x1*x2+x3+(1|id)'}. At least one fixed effect is required.}
@@ -133,6 +136,8 @@ linda.obj  <- linda(otu.tab[, ind1], meta[ind1, ], formula = '~Smoke+Sex',
            feature.dat.type = 'count', 
            prev.filter = 0.1, is.winsor = TRUE, outlier.pct = 0.03,
            p.adj.method = "BH", alpha = 0.1)
+           
+           
 
 
 linda.plot(linda.obj, c('Smokey', 'Sexmale'),
@@ -166,7 +171,7 @@ lind.obj  <- linda(otu.tab[, ind1], meta[ind1, ], formula = '~Smoke+Sex',
 
 \references{
 Huijuan Zhou, Kejun He, Jun Chen, and Xianyang Zhang. LinDA: Linear Models for Differential Abundance
-Analysis of Microbiome Compositional Data. 
+Analysis of Microbiome Compositional Data. https://arxiv.org/abs/2104.00242
 }
 \author{
 Huijuan Zhou,

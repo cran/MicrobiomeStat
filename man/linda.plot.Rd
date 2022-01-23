@@ -69,7 +69,7 @@ linda.plot(linda.obj, c('Smokey', 'Sexmale'),
 
 \references{
 Huijuan Zhou, Kejun He, Jun Chen, and Xianyang Zhang. LinDA: Linear Models for Differential Abundance
-Analysis of Microbiome Compositional Data. 
+Analysis of Microbiome Compositional Data. https://arxiv.org/abs/2104.00242
 }
 \author{
 Huijuan Zhou,

@@ -1,7 +1,7 @@
-aa6ec6742159df3d98eb488ee09b90a6 *DESCRIPTION
-29cb875b76492607babc70e56ed56812 *NAMESPACE
-87a6443dff7720e08f8bc4c452725031 *R/linda.R
+4cb162600c5aa6ec9aa96e3496362930 *DESCRIPTION
+b9d67854fb16013c100c58dbe09af09e *NAMESPACE
+53100a3bd9a9c80a57cfcf796c2b2576 *R/linda.R
 f3a21783398ec19dde95d90bf4cffc53 *data/smokers.rda
-c151ceba8c04fed612c031d355bc14cd *man/linda.Rd
-84b18118766c88b21ab580921cef302a *man/linda.plot.Rd
+881ee9ca9c258619e4a6718c3094c2bc *man/linda.Rd
+a0f28d05b2d04adc94636b3d22398284 *man/linda.plot.Rd
 900a0eec3ebe6c9b98aad004faf93eff *man/smokers.Rd

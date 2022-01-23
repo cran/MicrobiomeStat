@@ -8,7 +8,8 @@ import(ggplot2)
 import(ggrepel)
 importFrom(lmerTest, lmer)
 importFrom(modeest, mlv)
-importFrom("grDevices", "dev.off", "hcl", "pdf")
+importFrom(grDevices, dev.off, hcl, pdf)
+importFrom(phyloseq, otu_table, sample_data)
 
 
 export(linda)
