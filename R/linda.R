@@ -75,20 +75,39 @@ winsor.fun <- function(Y, quan, feature.dat.type) {
 #'  \item{df:}{ degrees of freedom. The number of samples minus the number of explanatory variables (intercept included) for
 #'  fixed-effect models; estimates from R package \code{lmerTest} with Satterthwaite method of approximation for mixed-effect models.}
 #'  }}
+#'  \item{covariance}{a list of data frames; the data frame records the covariances between a regression coefficient with other coefficients;
+#'  \code{names(covariance)} is equal to \code{variables}; the rows of the data frame corresponds to taxa. If the length of \code{variables}
+#'  is equal to 1, then the \code{covariance} is NULL.}
 #' \item{otu.tab.use}{the OTU table used in the abundance analysis (the \code{otu.tab} after the preprocessing:
 #' samples that have NAs in the variables in \code{formula} or have less than \code{lib.cut} read counts are removed;
 #' taxa with prevalence less than \code{prev.cut} are removed and data is winsorized if \code{!is.null(winsor.quan)};
 #' and zeros are treated, i.e., imputed or pseudo-count added).}
 #' \item{meta.use}{the meta data used in the abundance analysis (only variables in \code{formula} are stored; samples that have NAs
 #' or have less than \code{lib.cut} read counts are removed; numerical variables are scaled).}
-#'
+#' \item{wald}{a list for use in Wald test. If the fitting model is a linear model, then it includes
+#' \itemize{
+#' \item{beta:}{ a matrix of the biased regression coefficients including the intercept and all fixed effects; the columns correspond to taxa}
+#' \item{sig:}{ the standard errors; the elements corresponding to taxa}
+#' \item{X:}{ the design matrix of the fitting model}
+#' \item{bias:}{ the estimated biases of the regression coefficients including intercept and all fixed effects}
+#' }
+#' If the fitting model is a linear mixed-effect model, then it includes
+#' \itemize{
+#' \item{beta:}{ a matrix of the biased regression coefficients including intercept and all fixed effects; the culumns correspond to taxa}
+#' \item{beta.cov:}{ a list of covariance matrices of \code{beta}; the elements corresponding to taxa}
+#' \item{rand.cov:}{ a list with covariance matrices of variance parameters of random effects; the elements corresponding to taxa; see more details in the paper of 'lmerTest'}
+#' \item{Joc.beta.cov.rand:} { a list of a list of Jacobian matrices of \code{beta.cov} with respect to the variance parameters; the elements corresponding to taxa}
+#' \item{bias:}{ the estimated biases of the regression coefficients including intercept and all fixed effects}
+#' }}
+#' 
 #' @author Huijuan Zhou \email{huijuanzhou2019@gmail.com}
 #' Jun Chen \email{Chen.Jun2@mayo.edu}
-#' Maintainer: Huijuan Zhou
+#' Maintainer: Huijuan Zhou, Jun Chen
 #' @references Huijuan Zhou, Kejun He, Jun Chen, and Xianyang Zhang. LinDA: Linear Models for Differential Abundance
 #' Analysis of Microbiome Compositional Data.
 #' @importFrom modeest mlv
 #' @importFrom lmerTest lmer
+#' @importFrom lmerTest as_lmerModLmerTest
 #' @import foreach
 #' @import parallel
 #' @examples
@@ -117,7 +136,7 @@ winsor.fun <- function(Y, quan, feature.dat.type) {
 #'
 #' @export
 
-linda <- function(feature.dat, meta.dat, phyloseq.obj = NULL, formula, feature.dat.type = c('count', 'proportion'),
+linda <- function(feature.dat, meta.dat, formula, feature.dat.type = c('count', 'proportion'),
 		prev.filter = 0, mean.abund.filter = 0, max.abund.filter = 0,
 		is.winsor = TRUE, outlier.pct = 0.03,
 		adaptive = TRUE, zero.handling = c('pseudo-count', 'imputation'),
@@ -127,12 +146,12 @@ linda <- function(feature.dat, meta.dat, phyloseq.obj = NULL, formula, feature.d
 	
 	feature.dat.type <- match.arg(feature.dat.type)
 	
-	if (!is.null(phyloseq.obj)) {
-		feature.dat.type <- 'count'
-		
-		feature.dat <- otu_table(phyloseq.obj)@.Data
-		meta.dat <- data.frame(sample_data(phyloseq.obj))	
-	}
+	# if (!is.null(phyloseq.obj)) {
+	# 	feature.dat.type <- 'count'
+	# 	
+	# 	feature.dat <- otu_table(phyloseq.obj)@.Data
+	# 	meta.dat <- data.frame(sample_data(phyloseq.obj))	
+	# }
 
 	if(any(is.na(feature.dat))) {
 		stop('The feature table contains NAs! Please remove!\n')
@@ -262,26 +281,45 @@ linda <- function(feature.dat, meta.dat, phyloseq.obj = NULL, formula, feature.d
 		if (verbose)  cat("Fit linear models ...\n")
 		suppressMessages(fit <- lm(as.formula(paste0('W', formula)), Z))
 		res <- do.call(rbind, coef(summary(fit)))
-		df <- rep(n - ncol(model.matrix(fit)), m)
+		d <- ncol(model.matrix(fit))
+		df <- rep(n - d, m)
+		tmp <- vcov(fit)
+		res.cov <- foreach(i = 1 : m) %do% {tmp[((i-1)*d+1) : (i*d), ((i-1)*d+1) : (i*d)]}
+		wald <- list(beta = coef(fit), sig = sigma(fit), X = model.matrix(fit))
+		res.cov <- do.call(rbind, res.cov)
+		rownames(res.cov) <- rownames(res)
+		colnames(res.cov) <- rownames(res)[1 : d]
 	} else {
 		if (verbose)  cat("Fit linear mixed effects models ...\n")
 		fun <- function(i) {
 			w <- W[, i]
 			suppressMessages(fit <- lmer(as.formula(paste0('w', formula)), Z))
-			coef(summary(fit))
+			a <- as_lmerModLmerTest(fit)
+			rand.cov <- a@vcov_varpar
+			Jac.beta.cov.rand <- a@Jac_list
+			list(coef(summary(fit)), vcov(fit), rand.cov, Jac.beta.cov.rand)
 		}
 		if(n.cores > 1) {
-			res <- mclapply(c(1 : m), function(i) fun(i), mc.cores = n.cores)
+		  tmp <- mclapply(c(1 : m), function(i) fun(i), mc.cores = n.cores)
 		} else {
-			suppressMessages(res <- foreach(i = 1 : m) %do% fun(i))
+		  suppressMessages(tmp <- foreach(i = 1 : m) %do% fun(i))
 		}
-		res <- do.call(rbind, res)
+		res <- do.call(rbind, lapply(tmp, `[[`, 1))
+		res.cov <- do.call(rbind, lapply(tmp, `[[`, 2))
+		wald <- list(beta = do.call(cbind, lapply(lapply(tmp, `[[`, 1), function(x)x[,1])),
+		             beta.cov = lapply(tmp, `[[`, 2),
+		             rand.cov = lapply(tmp, `[[`, 3),
+		             Jac.beta.cov.rand = lapply(tmp, `[[`, 4))
 	}
 #	options(warn = oldw)
 	
 	res.intc <- res[which(rownames(res) == '(Intercept)'), ]
 	rownames(res.intc) <- NULL
-	baseMean <- 2 ^ res.intc[, 1]
+#	options(warn = -1)
+	suppressMessages(bias.intc <- mlv(sqrt(n) * res.intc[, 1],
+	                            method = 'meanshift', kernel = 'gaussian') / sqrt(n))
+#	options(warn = oldw)
+	baseMean <- 2 ^ (res.intc[, 1] - bias.intc)
 	baseMean <- baseMean / sum(baseMean) * 1e6
 	
 	output.fun <- function(x) {
@@ -310,22 +348,153 @@ linda <- function(feature.dat, meta.dat, phyloseq.obj = NULL, formula, feature.d
 		return(list(bias = bias, output = output))
 	}
 	
+	cov.fun <- function(x) {
+	  tmp <- (1 : ncol(res.cov))[-c(1, which(colnames(res.cov) == x))]
+	  covariance <- as.data.frame(as.matrix(res.cov[which(rownames(res.cov) == x), tmp]))
+	  rownames(covariance) <- taxa.name
+	  colnames(covariance) <- colnames(res.cov)[tmp]
+	  return(covariance)
+	}
+	
 	variables <- unique(rownames(res))[-1]
 	variables.n <- length(variables)
 	bias <- rep(NA, variables.n)
 	output <- list()
+	if(variables.n == 1) {
+	  covariance <- NULL
+	} else {
+	  covariance <- list()
+	}
 	for(i in 1 : variables.n) {
 		tmp <- output.fun(variables[i])
 		output[[i]] <- tmp[[2]]
 		bias[i] <- tmp[[1]]
+		if(variables.n > 1) {
+		  covariance[[i]] <- cov.fun(variables[i])
+		}
 	}
 	names(output) <- variables
+	if(variables.n > 1) {
+	  names(covariance) <- variables
+	}
 	
 	rownames(Y) <- taxa.name
 	colnames(Y) <- samp.name
 	rownames(Z) <- samp.name
+	wald[['bias']] <- c(bias.intc, bias)
 	if (verbose)  cat("Completed.\n")
-	return(list(variables = variables, bias = bias, output = output, feature.dat.use = Y, meta.dat.use = Z))
+	return(list(variables = variables, bias = bias, output = output, covariance = covariance, feature.dat.use = Y, meta.dat.use = Z, wald = wald))
+}
+
+#' Wald test for bias-corrected regression coefficient
+#'
+#' The function implements Wald test for bias-corrected regression coefficient learned from the \code{linda} function.
+#' One can utilize the function to perform ANOVA-type analyses.
+#'
+#' @param linda.obj return from the \code{linda} function.
+#' @param L A matrix for testing \code{Lb = 0}, where \code{b} includes the intercept and all fixed effects. Thus the number of columns of
+#' L must be equal to \code{length(variables)+1}, where \code{variables} is from \code{linda.obj}, which does not include the intercept.
+#' @param model \code{'LM'} or \code{'LMM'} indicating the model fitted in \{linda\} is linear model or linear mixed-effect model.
+#' @param alpha significance level for testing \code{Lb = 0}.
+#' @param p.adj.method P-value adjusting approach. See R function \code{p.adjust}. The default is 'BH'.
+#'
+#' @return A data frame with columns
+#' \item{Fstat}{Wald statistics for each taxon}
+#' \item{df1}{The numerator degrees of freedom}
+#' \item{df2}{The denominator degrees of freedom}
+#' \item{pvalue}{ \code{1 - pf(Fstat, df1, df2)}}
+#' \item{padj}{ \code{p.adjust(pvalue, method = p.adj.method)}}
+#' \item{reject}{ \code{padj <= alpha}}
+#'
+#' @author Huijuan Zhou \email{huijuanzhou2019@gmail.com}
+#' Jun Chen \email{Chen.Jun2@mayo.edu}
+#' Xianyang Zhang \email{zhangxiany@stat.tamu.edu}
+#' @references Huijuan Zhou, Kejun He, Jun Chen, and Xianyang Zhang. LinDA: Linear Models for Differential Abundance
+#' Analysis of Microbiome Compositional Data.
+#' @examples
+#'
+#' #install package "phyloseq" for importing "smokers" dataset
+#' ind <- smokers$meta$AIRWAYSITE == 'Throat'
+#' otu.tab <- as.data.frame(smokers$otu[, ind])
+#' meta <- cbind.data.frame(Smoke = factor(smokers$meta$SMOKER[ind]),
+#'                          Sex = factor(smokers$meta$SEX[ind]),
+#'                          Site = factor(smokers$meta$SIDEOFBODY[ind]),
+#'                          SubjectID = factor(smokers$meta$HOST_SUBJECT_ID[ind]))
+#' linda.obj <- linda(otu.tab, meta, formula = '~Smoke+Sex+(1|SubjectID)', alpha = 0.1,
+#'                    prev.cut = 0.1, lib.cut = 1000, winsor.quan = 0.97)
+#' L <- matrix(c(0, 1, 0, 0, 0, 1), nrow = 2, byrow = TRUE)
+#' result <- linda.wald.test(linda.obj, L, 'LMM', alpha = 0.1)
+#'
+#' @export
+
+linda.wald.test <- function(linda.obj, L, model = c('LM', 'LMM'), alpha = 0.05, p.adj.method = 'BH') {
+  r <- qr(L)$rank
+  wald <- linda.obj$wald
+  bias <- wald$bias
+  beta <- wald$beta - bias
+  n <- ncol(linda.obj$feature.dat.use)
+  m <- nrow(linda.obj$feature.dat.use)
+  
+  if(model == 'LM') {
+    p <- nrow(beta)
+    X <- wald$X
+    Lbeta.cov.inv <- solve(L %*% solve(t(X)%*% X) %*% t(L))
+    Lbeta <- L %*% beta
+    Fstat <- sapply(1 : m, function(i) {
+      lbeta <- Lbeta[, i]
+      t(lbeta) %*% Lbeta.cov.inv %*% lbeta / (wald$sig[i] ^ 2 * r)
+    })
+    df2 <- rep(n - p, m)
+  } else if(model == 'LMM') {
+    beta.cov <- wald$beta.cov
+    rand.cov <- wald$rand.cov
+    Jac.beta.cov.rand <- wald$Jac.beta.cov.rand
+    Lbeta <- L %*% beta
+    fun <- function(i) {
+      beta.cov.i <- beta.cov[[i]]
+      rand.cov.i <- rand.cov[[i]]
+      Jac.beta.cov.rand.i <- Jac.beta.cov.rand[[i]]
+      Lbeta.cov.i <- L %*% beta.cov.i %*% t(L)
+      if(nrow(L) == 1) {
+        d <- as.vector(Lbeta.cov.i)
+        g <- sapply(Jac.beta.cov.rand.i, function(x) L %*% x %*% t(L))
+        nu <- 2 * d ^ 2 / as.vector(t(g) %*% rand.cov.i %*% g)
+        Lbeta.cov.inv.i <- 1 / d
+      } else {
+        Lbeta.cov.i.eig <- eigen(Lbeta.cov.i)
+        P <- Lbeta.cov.i.eig$vectors
+        D <- Lbeta.cov.i.eig$values
+        PtL <- t(P) %*% L
+        nu <- rep(NA, r)
+        for(j in 1 : r) {
+          d <- D[j]
+          l <- PtL[j, ]
+          g <- sapply(Jac.beta.cov.rand.i, function(x) t(l) %*% x %*% l)
+          nu[j] <- 2 * d ^ 2 / as.vector(t(g) %*% rand.cov.i %*% g)
+        }
+        Lbeta.cov.inv.i <- P %*% diag(D ^ (-1)) %*% t(P)
+      }
+      tmp <- sum(nu / (nu - 2))
+      nu <- 2 * tmp / (tmp - r)
+      lbeta <- Lbeta[, i]
+      Fstat <- as.vector(t(lbeta) %*% Lbeta.cov.inv.i %*% lbeta) / r
+      df2 <- nu
+      return(c(Fstat, df2))
+    }
+    Fstat <- df2 <- rep(NA, m)
+    for (i in 1 : m) {
+      res <- fun(i)
+      Fstat[i] <- res[1]
+      df2[i] <- res[2]
+    }
+  }
+  df1 <- rep(r, m)
+  pvalue <- 1 - pf(Fstat, df1, df2)
+  padj <- p.adjust(pvalue, method = p.adj.method)
+  reject <- padj <= alpha
+  res <- cbind.data.frame(Fstat, df1, df2, pvalue, padj, reject)
+  rownames(res) <- rownames(linda.obj$otu.tab.use)
+  return(res)
 }
 
 #' Plot linda results

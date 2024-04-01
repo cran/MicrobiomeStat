@@ -6,13 +6,16 @@ importFrom(parallel, mclapply, makeCluster, stopCluster, clusterEvalQ,
 import(foreach)
 import(ggplot2)
 import(ggrepel)
-importFrom(lmerTest, lmer)
+import(MASS)
+import(utils)
+import(Matrix)
+importFrom(lmerTest, lmer, as_lmerModLmerTest)
 importFrom(modeest, mlv)
 importFrom(grDevices, dev.off, hcl, pdf)
-importFrom(phyloseq, otu_table, sample_data)
 
 
 export(linda)
 export(linda.plot)
+export(linda.wald.test)
 
 

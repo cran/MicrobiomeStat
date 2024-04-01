@@ -14,7 +14,6 @@ It could fit mixed-effect models for analysis of correlated data.
 linda(
   feature.dat,
   meta.dat,
-  phyloseq.obj = NULL,
   formula,
   feature.dat.type = c('count', 'proportion'),
   prev.filter = 0,
@@ -39,8 +38,6 @@ linda(
 \item{meta.dat}{a data frame containing the sample meta data. If there are NAs, the corresponding samples
  will be removed in the analysis.}
 
-\item{phyloseq.obj}{a \code{phyloseq} object containing the OTU count data and sample data.}
- 
 \item{formula}{a character string for the formula. The formula should conform to that used by \code{lm} (independent 
 data) or \code{lmer} (correlated data).
  For example: \code{formula = '~x1*x2+x3+(1|id)'}. At least one fixed effect is required.}
@@ -92,17 +89,17 @@ for declaring differential features. Default is 0.05.}
 }
 \value{
 A list with the elements
-\item{variables}{a vector of variable names of all fixed effects in \code{formula}. For example: \code{formula = '~x1*x2+x3+(1|id)'}.
+\item{variables}{A vector of variable names of all fixed effects in \code{formula}. For example: \code{formula = '~x1*x2+x3+(1|id)'}.
 Suppose \code{x1} and \code{x2} are numerical, and \code{x3} is a categorical variable of three levels: a, b and c.
 Then the elements of \code{variables} would be \code{('x1', 'x2', 'x3b', 'x3c', 'x1:x2')}.}
-\item{bias}{a numeric vector; each element corresponds to one variable in \code{variables};
+\item{bias}{numeric vector; each element corresponds to one variable in \code{variables};
 the estimated bias of the regression coefficients due to the compositional effect.}
 \item{output}{a list of data frames with columns 'baseMean', 'log2FoldChange', 'lfcSE', 'stat', 'pvalue', 'padj', 'reject',
- 'df'; \code{names(output)} is equal to \code{variables}; the rows of the data frame corresponds to features.
- Note: if there are features being excluded due to filtering, the number of the rows of the output data frame
- will be not equal to the number of the rows of \code{feature.dat}. Features are identified by the row names.
- If the row names of \code{feature.dat} are NULL, then \code{1 : nrow(feature.dat)} is set as the row names of \code{feature.dat}.
- \itemize{
+ 'df'; \code{names(output)} is equal to \code{variables}; the rows of the data frame corresponds to taxa.
+ Note: if there are taxa being excluded due to \code{prev.cut}, the number of the rows of the output data frame
+ will be not equal to the number of the rows of \code{otu.tab}. Taxa are identified by the rownames.
+ If the rownames of \code{otu.tab} are NULL, then \code{1 : nrow(otu.tab)} is set as the rownames of \code{otu.tab}.
+\describe{
  \item{baseMean:}{ 2 to the power of the intercept coefficients (normalized by one million)}
  \item{log2FoldChange:}{ bias-corrected coefficients}
  \item{lfcSE:}{ standard errors of the coefficients}
@@ -112,12 +109,34 @@ the estimated bias of the regression coefficients due to the compositional effec
  \item{reject:}{ \code{padj <= alpha}}
  \item{df:}{ degrees of freedom. The number of samples minus the number of explanatory variables (intercept included) for
  fixed-effect models; estimates from R package \code{lmerTest} with Satterthwaite method of approximation for mixed-effect models.}
- }}
-\item{feature.dat.use}{the actual feature table used in the differential analysis after filtering, winsorization and zero handling.}
-\item{meta.dat.use}{the meta data used in the abundance analysis (only variables in \code{formula} are stored; samples that have NAs
- are removed; numerical variables are scaled).}
+ }
+ }
+ \item{covariance}{a list of data frames; the data frame records the covariances between a regression coefficient with other coefficients;
+ \code{names(covariance)} is equal to \code{variables}; the rows of the data frame corresponds to taxa. If the length of \code{variables}
+ is equal to 1, then the \code{covariance} is NULL.}
+\item{otu.tab.use}{the OTU table used in the abundance analysis (the \code{otu.tab} after the preprocessing:
+samples that have NAs in the variables in \code{formula} or have less than \code{lib.cut} read counts are removed;
+taxa with prevalence less than \code{prev.cut} are removed and data is winsorized if \code{!is.null(winsor.quan)};
+and zeros are treated, i.e., imputed or pseudo-count added).}
+\item{meta.use}{the meta data used in the abundance analysis (only variables in \code{formula} are stored; samples that have NAs
+or have less than \code{lib.cut} read counts are removed; numerical variables are scaled).}
+\item{wald}{a list for use in Wald test. If the fitting model is a linear model, then it includes
+\describe{
+\item{beta:}{ a matrix of the biased regression coefficients including intercept and all fixed effects; the culumns correspond to taxa}
+\item{sig:}{ the standard errors; the elements corresponding to taxa}
+\item{X:}{ the design matrix of the fitting model}
+\item{bias:}{ the estimated biases of the regression coefficients including intercept and all fixed effects}
 }
-
+If the fitting model is a linear mixed-effect model, then it includes
+\describe{
+\item{beta:}{ a matrix of the biased regression coefficients including intercept and all fixed effects; the culumns correspond to taxa}
+\item{beta.cov:}{ a list of covariance matrices of \code{beta}; the elements corresponding to taxa}
+\item{rand.cov:}{ a list with covariance matrices of variance parameters of random effects; the elements corresponding to taxa; see more details in the paper of 'lmerTest'}
+\item{Joc.beta.cov.rand:}{ a list of a list of Jacobian matrices of \code{beta.cov} with respect to the variance parameters; the elements corresponding to taxa}
+\item{bias:}{ the estimated biases of the regression coefficients including intercept and all fixed effects}
+}
+}
+}
 \examples{
 
 data(smokers)
@@ -170,8 +189,7 @@ lind.obj  <- linda(otu.tab[, ind1], meta[ind1, ], formula = '~Smoke+Sex',
 }
 
 \references{
-Huijuan Zhou, Kejun He, Jun Chen, and Xianyang Zhang. LinDA: Linear Models for Differential Abundance
-Analysis of Microbiome Compositional Data. https://arxiv.org/abs/2104.00242
+Zhou, H., He, K., Chen, J., Zhang, X. (2022). LinDA: linear models for differential abundance analysis of microbiome compositional data. Genome biology, 23(1), 95.
 }
 \author{
 Huijuan Zhou,
