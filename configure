@@ -1,0 +1,66 @@
+#!/bin/sh
+
+# Check for NLopt library
+echo "Checking for NLopt library..."
+
+# Try to compile a test program
+cat > conftest.cpp <<EOF
+#include <nlopt.hpp>
+int main() {
+    return 0;
+}
+EOF
+
+# Try different common locations
+NLOPT_FOUND=0
+NLOPT_CXXFLAGS=""
+NLOPT_LIBS=""
+
+# Check standard locations
+for NLOPT_PREFIX in /usr /usr/local /opt/local /opt/homebrew /usr/local/opt/nlopt; do
+    if [ -f "${NLOPT_PREFIX}/include/nlopt.hpp" ] || [ -f "${NLOPT_PREFIX}/include/nlopt.h" ]; then
+        ${CXX} ${CXXFLAGS} -I${NLOPT_PREFIX}/include -L${NLOPT_PREFIX}/lib -lnlopt conftest.cpp -o conftest 2>/dev/null
+        if [ $? -eq 0 ]; then
+            NLOPT_FOUND=1
+            NLOPT_CXXFLAGS="-I${NLOPT_PREFIX}/include -DHAVE_NLOPT"
+            NLOPT_LIBS="-L${NLOPT_PREFIX}/lib -lnlopt"
+            echo "NLopt found in ${NLOPT_PREFIX}"
+            break
+        fi
+    fi
+done
+
+# Try pkg-config
+if [ $NLOPT_FOUND -eq 0 ]; then
+    if command -v pkg-config >/dev/null 2>&1; then
+        if pkg-config --exists nlopt 2>/dev/null; then
+            NLOPT_CXXFLAGS="`pkg-config --cflags nlopt` -DHAVE_NLOPT"
+            NLOPT_LIBS="`pkg-config --libs nlopt`"
+            ${CXX} ${CXXFLAGS} ${NLOPT_CXXFLAGS} ${NLOPT_LIBS} conftest.cpp -o conftest 2>/dev/null
+            if [ $? -eq 0 ]; then
+                NLOPT_FOUND=1
+                echo "NLopt found via pkg-config"
+            fi
+        fi
+    fi
+fi
+
+# Clean up
+rm -f conftest conftest.cpp conftest.o
+
+if [ $NLOPT_FOUND -eq 0 ]; then
+    echo "NLopt not found. Package will compile without NLopt support."
+    echo "To enable NLopt support, install NLopt library:"
+    echo "  - Ubuntu/Debian: sudo apt-get install libnlopt-dev"
+    echo "  - macOS: brew install nlopt"
+    echo "  - Fedora/RHEL: sudo dnf install NLopt-devel"
+    NLOPT_CXXFLAGS=""
+    NLOPT_LIBS=""
+fi
+
+# Write to Makevars
+sed -e "s|@NLOPT_CXXFLAGS@|${NLOPT_CXXFLAGS}|" \
+    -e "s|@NLOPT_LIBS@|${NLOPT_LIBS}|" \
+    src/Makevars.in > src/Makevars
+
+echo "Configuration complete."

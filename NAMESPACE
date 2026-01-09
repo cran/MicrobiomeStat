@@ -12,10 +12,23 @@ import(Matrix)
 importFrom(lmerTest, lmer, as_lmerModLmerTest)
 importFrom(modeest, mlv)
 importFrom(grDevices, dev.off, hcl, pdf)
+importFrom(Rcpp, evalCpp)
+importFrom(dplyr, mutate, group_by, summarise, arrange, bind_rows)
+importFrom(lhs, randomLHS)
+importFrom(ParamHelpers, makeParamSet, makeNumericVectorParam, getParamSet, generateDesign)
+importFrom(smoof, makeSingleObjectiveFunction)
+importFrom(mlrMBO, makeMBOControl, setMBOControlInfill, makeMBOInfillCritCB, setMBOControlTermination, mbo)
+importFrom(mlr, makeLearner)
+useDynLib(MicrobiomeStat, .registration=TRUE)
 
 
 export(linda)
 export(linda.plot)
 export(linda.wald.test)
+export(cscca)
+export(cscca.CV)
+export(DGP_OC)
+export(bmdd)
+export(bmdd.nlopt)
 
 
